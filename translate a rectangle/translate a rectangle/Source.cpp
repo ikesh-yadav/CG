@@ -1,4 +1,10 @@
-#include<GL/glut.h>
+#define FREEGLUT_STATIC
+#define _LIB
+#define FREEGLUT_LIB_PRAGMAS 0
+
+
+#include<stdio.h>
+#include<GL/freeglut.h>
 #include<math.h>
 
 
@@ -60,7 +66,7 @@ void draw() {
 	}
 	glFlush();
 }
-void main(int argc, char** argv) {
+void someting_main(int argc, char** argv) {
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_SINGLE | GLUT_RGB);
 	glutInitWindowPosition(0, 0);
