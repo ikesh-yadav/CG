@@ -21,8 +21,7 @@ out vec4 color;
 
 in vec3 FragPos;
 in vec3 Normal;
-in vec2 TexCoords;
-flat in int TexID;
+in vec2 TexCoord;
 
 
 uniform vec3 viewPos;
@@ -32,20 +31,10 @@ uniform Material material;
 uniform bool texture_enable;
 
 // Texture samplers
-uniform sampler2D u_texture0;
-uniform sampler2D u_texture1;
-
-uniform sampler2D texture_diffuse0;
-uniform sampler2D texture_specular0;
-
-uniform sampler2D texture_diffuse1;
-uniform sampler2D texture_specular1;
-
-uniform bool isModel;
+uniform sampler2D u_texture;
 
 void main()
 {
-
     // ambient
     vec3 ambient = light.color * material.ambient;
   	
@@ -61,18 +50,14 @@ void main()
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
     vec3 specular = light.color * (spec * material.specular);  
 
-    vec3 result = (ambient + diffuse + specular);
+    vec3 result;
 
-    if (isModel) {
-            color = vec4(texture( texture_diffuse0, TexCoords )) * vec4(result, 0.7f);
-    }else {
-        if (texture_enable){
-            if(TexID == 1) color = vec4(texture(u_texture0, TexCoords)) * vec4(result, 1.0f);
-            else color = vec4(texture(u_texture1, TexCoords)) * vec4(result, 1.0f);        
-        } else {
-            color =  vec4(result * material.color, 1.0f); 
-        }
+    //vec3 result = (ambient + diffuse + specular) * vec3( 0.3f );
+    if (texture_enable){
+        result = (ambient + diffuse + specular);//* vec4(result, 1.0f);
+        color =  texture(u_texture, TexCoord); 
+    } else {
+        result = (ambient + diffuse + specular) * material.color;
+        color = vec4(result, 1.0f);
     }
-    
-
 }

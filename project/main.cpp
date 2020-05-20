@@ -17,7 +17,6 @@
 #include "VertexBuffer.h"
 #include "IndexBuffer.h"
 #include "VertexArray.h"
-#include "Indicies.h"
 #include "Texture.h"
 
 #include "SOIL2/SOIL2.h"
@@ -27,8 +26,14 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-// Other Libs
-
+//defining structures
+struct light {
+    glm::vec3 position;
+    glm::vec3 color;
+    glm::vec3 ambient;
+    glm::vec3 diffuse;
+    glm::vec3 specular;
+};
 
 // Properties
 const GLuint WIDTH = 800, HEIGHT = 600;
@@ -39,6 +44,9 @@ bool left_button_down = false;
 void KeyCallback( GLFWwindow *window, int key, int scancode, int action, int mode );
 void MouseCallback(GLFWwindow* window, int button, int action, int mods);
 void MousePosCallback(GLFWwindow* window, double xPos, double yPos);
+
+void SetLightProperties(Shader shader, light l);
+
 void GLAPIENTRY ErrorMessageCallback(GLenum source,
     GLenum type,
     GLuint id,
@@ -49,7 +57,7 @@ void GLAPIENTRY ErrorMessageCallback(GLenum source,
 
 void DoMovement( );
 
-void drawSkybox(glm::mat4 view, glm::mat4 projection, Shader skyboxShader, VertexArray skyboxVA, GLuint skyboxtexture);
+void drawSkybox(glm::mat4& view, glm::mat4& projection, Shader& skyboxShader, VertexArray& skyboxVA, GLuint& skyboxtexture);
 
 // Camera
 Camera camera( glm::vec3( 2.0f, 2.0f, 10.0f ) );//change to set the initial positionof the camera
@@ -87,6 +95,7 @@ GLFWwindow* init() {
     }
 
     glfwMakeContextCurrent(window);
+
 
     //sync to monitor refresh rate
     glfwSwapInterval(1);
@@ -130,56 +139,76 @@ GLFWwindow* init() {
 int main( )
 {
     GLFWwindow* window = init();
+
+    glDebugMessageCallback(ErrorMessageCallback, NULL);
     
     // Setup and compile our shaders
     //Shader shader( "res/shaders/basicShader_withTexture.vs", "res/shaders/basicShader_withTexture.frag" );
-    Shader skyboxShader( "res/shaders/skybox.vs", "res/shaders/skybox.frag" );
 
-    Shader modelshader("res/shaders/modelLoading.vs", "res/shaders/modelLoading.frag");
+    Shader modelshader("res/shaders/object_basic_lighting_shader.vs", "res/shaders/object_basic_lighting_shader.frag");
+    //Shader modelshader("res/shaders/object_basic_lighting_shader.vs", "res/shaders/modelLoading.frag");
 
     Shader lightingShader("res/shaders/object_basic_lighting_shader.vs", "res/shaders/object_basic_lighting_shader.frag");
     Shader lampShader("res/shaders/lamp.vs", "res/shaders/lamp.frag");
+
+    //Shader basicShader("res/shaders/basicShader_withTexture.vs", "res/shaders/basicShader_withTexture.frag");
+
+    Shader skyboxShader("res/shaders/skybox.vs", "res/shaders/skybox.frag");
+
+    //some usefull
+    unsigned int CuboidIndices[36] = {
+        //bottom face
+        0, 1, 2,
+        2, 3, 0,
+        //top face
+        4, 5, 6,
+        6, 7, 4,
+        //left face
+        0, 4, 7,
+        7, 3, 0,
+        //right face
+        6, 5, 1,
+        1, 2, 6,
+        //back face
+        4, 5, 1,
+        1, 0, 4,
+        //font face
+        7, 6, 2,
+        2, 3, 7
+    };
+
+
+    IndexBuffer cuboidIB(CuboidIndices, sizeof(CuboidIndices) / sizeof(unsigned int));
 
     // Setup room
 
     GLfloat roomVertices[] =
     {
-        // Positions           // Texture Coords            //normals
-       /*
-
-       just vertices tto use for index buffer
-         //bottom
-          0.0f,   0.0f,   0.0f,   0.0f, 0.0f,
-         10.0f,   0.0f,   0.0f,   1.0f, 0.0f,
-         10.0f,   0.0f,  10.0f,   1.0f, 0.0f,
-          0.0f,   0.0f,  10.0f,   0.0f, 0.0f,
-
-         //top
-        */
+        // Positions                 //normals              // Texture Coords    //texID
 
         //back
-          0.0f,   0.0f,  0.0f,       0.0f, 0.0f,        0.0f, 0.0f ,0.0f,
-         10.0f,   0.0f,  0.0f,       1.0f, 0.0f,        0.0f, 0.0f ,0.0f,
-         10.0f,  10.0f,  0.0f,       1.0f, 1.0f,        0.0f, 0.0f ,0.0f,
-         10.0f,  10.0f,  0.0f,       1.0f, 1.0f,        0.0f, 0.0f ,0.0f,
-          0.0f,  10.0f,  0.0f,       0.0f, 1.0f,        0.0f, 0.0f ,0.0f,
-          0.0f,   0.0f,  0.0f,       0.0f, 0.0f,        0.0f, 0.0f ,0.0f,
-
-        //left
-          0.0f,  10.0f, 10.0f,       1.0f, 0.0f,        0.0f, 0.0f ,0.0f,
-          0.0f,  10.0f,  0.0f,       1.0f, 1.0f,        0.0f, 0.0f ,0.0f,
-          0.0f,   0.0f,  0.0f,       0.0f, 1.0f,        0.0f, 0.0f ,0.0f,
-          0.0f,   0.0f,  0.0f,       0.0f, 1.0f,        0.0f, 0.0f ,0.0f,
-          0.0f,   0.0f, 10.0f,       0.0f, 0.0f,        0.0f, 0.0f ,0.0f,
-          0.0f,  10.0f, 10.0f,       1.0f, 0.0f,        0.0f, 0.0f ,0.0f,
-
-         //bottom
-          0.0f, 0.0f,   0.0f,        0.0f, 1.0f,        0.0f, 0.0f ,0.0f,
-         10.0f, 0.0f,   0.0f,        1.0f, 1.0f,        0.0f, 0.0f ,0.0f,
-         10.0f, 0.0f,  10.0f,        1.0f, 0.0f,        0.0f, 0.0f ,0.0f,
-         10.0f, 0.0f,  10.0f,        1.0f, 0.0f,        0.0f, 0.0f ,0.0f,
-          0.0f, 0.0f,  10.0f,        0.0f, 0.0f,        0.0f, 0.0f ,0.0f,
-          0.0f, 0.0f,   0.0f,        0.0f, 1.0f,        0.0f, 0.0f ,0.0f,
+          0.0f,   0.0f,  0.0f,       0.0f, 0.0f ,1.0f,       0.0f, 0.0f,         0,
+         10.0f,   0.0f,  0.0f,       0.0f, 0.0f ,1.0f,       1.0f, 0.0f,         0,
+         10.0f,  10.0f,  0.0f,       0.0f, 0.0f ,1.0f,       1.0f, 1.0f,         0,
+         10.0f,  10.0f,  0.0f,       0.0f, 0.0f ,1.0f,       1.0f, 1.0f,         0,
+          0.0f,  10.0f,  0.0f,       0.0f, 0.0f ,1.0f,       0.0f, 1.0f,         0,
+          0.0f,   0.0f,  0.0f,       0.0f, 0.0f ,1.0f,       0.0f, 0.0f,         0,
+                                                                                
+        //left                                                                  
+          0.0f,  10.0f, 10.0f,       1.0f, 0.0f ,0.0f,       1.0f, 0.0f,         0,
+          0.0f,  10.0f,  0.0f,       1.0f, 0.0f ,0.0f,       1.0f, 1.0f,         0,
+          0.0f,   0.0f,  0.0f,       1.0f, 0.0f ,0.0f,       0.0f, 1.0f,         0,
+          0.0f,   0.0f,  0.0f,       1.0f, 0.0f ,0.0f,       0.0f, 1.0f,         0,
+          0.0f,   0.0f, 10.0f,       1.0f, 0.0f ,0.0f,       0.0f, 0.0f,         0,
+          0.0f,  10.0f, 10.0f,       1.0f, 0.0f ,0.0f,       1.0f, 0.0f,         0,
+                                                                                 
+          //bottom                                                               
+          0.0f,   0.0f,   0.0f,       0.0f, 1.0f ,0.0f,       0.0f, 1.0f,        1,
+         10.0f,   0.0f,   0.0f,       0.0f, 1.0f ,0.0f,       1.0f, 1.0f,        1,
+         10.0f,   0.0f,  10.0f,       0.0f, 1.0f ,0.0f,       1.0f, 0.0f,        1,
+         10.0f,   0.0f,  10.0f,       0.0f, 1.0f ,0.0f,       1.0f, 0.0f,        1,
+          0.0f,   0.0f,  10.0f,       0.0f, 1.0f ,0.0f,       0.0f, 0.0f,        1,
+          0.0f,   0.0f,   0.0f,       0.0f, 1.0f ,0.0f,       0.0f, 1.0f,        1,
 
     };
 
@@ -190,13 +219,17 @@ int main( )
     //positions
     roomlayout.Push<float>(3);
     //texture cordinates
-    roomlayout.Push<float>(2);
-    //normals
     roomlayout.Push<float>(3);
+    //normals
+    roomlayout.Push<float>(2);
+    //texture id
+    roomlayout.Push<unsigned int>(1);
+
 
     roomVA.AddBuffer(roomVB, roomlayout);
     //textures setup
     TextureClass wallTexture("res/images/wall-texture.png");
+    TextureClass floorTexture("res/images/white.png");
 
 
     glBindVertexArray(0);
@@ -264,7 +297,14 @@ int main( )
     */
 
     // Light attributes
-    glm::vec3 lightPos(20.0f, 30.0f, 10.0f);
+    light light1;
+    
+    light1.position = glm::vec3(1.0f, 1.71f, 3.0f);
+    light1.color = glm::vec3(1.0f, 1.0f, 0.9f);
+    light1.ambient = glm::vec3(0.1f, 0.1f, 0.1f);
+    light1.diffuse = glm::vec3(0.9f, 0.9f, 0.9f);
+    light1.specular = glm::vec3(0.5f, 0.5f, 0.5f);
+  
 
 
     //start of lamp code
@@ -272,47 +312,47 @@ int main( )
     GLfloat lampVertices[] = {
 
         // Positions            // Normals              // Texture Coords
-        1.0f, 1.0f, 1.0f,    0.0f,  0.0f, -1.0f,     0.0f,  0.0f,
-        2.0f, 1.0f, 1.0f,    0.0f,  0.0f, -1.0f,     1.0f,  0.0f,
-        2.0f,  2.0f, 1.0f,   0.0f,  0.0f, -1.0f,     1.0f,  1.0f,
-        2.0f,  2.0f, 1.0f,   0.0f,  0.0f, -1.0f,     1.0f,  1.0f,
-        1.0f,  2.0f, 1.0f,   0.0f,  0.0f, -1.0f,     0.0f,  1.0f,
-        1.0f, 1.0f, 1.0f,    0.0f,  0.0f, -1.0f,     0.0f,  0.0f,
+        1.0f,  1.0f,  1.0f,    0.0f,  0.0f, -1.0f,     0.0f,  0.0f,
+        2.0f,  1.0f,  1.0f,    0.0f,  0.0f, -1.0f,     1.0f,  0.0f,
+        2.0f,  2.0f,  1.0f,    0.0f,  0.0f, -1.0f,     1.0f,  1.0f,
+        2.0f,  2.0f,  1.0f,    0.0f,  0.0f, -1.0f,     1.0f,  1.0f,
+        1.0f,  2.0f,  1.0f,    0.0f,  0.0f, -1.0f,     0.0f,  1.0f,
+        1.0f,  1.0f,  1.0f,    0.0f,  0.0f, -1.0f,     0.0f,  0.0f,
+              
+        1.0f,  1.0f,  2.0f,    0.0f,  0.0f,  1.0f,     0.0f,  0.0f,
+        2.0f,  1.0f,  2.0f,    0.0f,  0.0f,  1.0f,     1.0f,  0.0f,
+        2.0f,  2.0f,  2.0f,    0.0f,  0.0f,  1.0f,     1.0f,  1.0f,
+        2.0f,  2.0f,  2.0f,    0.0f,  0.0f,  1.0f,     1.0f,  1.0f,
+        1.0f,  2.0f,  2.0f,    0.0f,  0.0f,  1.0f,     0.0f,  1.0f,
+        1.0f,  1.0f,  2.0f,    0.0f,  0.0f,  1.0f,     0.0f,  0.0f,
 
-        1.0f, 1.0f,  2.0f,    0.0f,  0.0f,  1.0f,     0.0f,  0.0f,
-        2.0f, 1.0f,  2.0f,    0.0f,  0.0f,  1.0f,     1.0f,  0.0f,
-        2.0f,  2.0f,  2.0f,   0.0f,  0.0f,  1.0f,     1.0f,  1.0f,
-        2.0f,  2.0f,  2.0f,   0.0f,  0.0f,  1.0f,  	1.0f,  1.0f,
-        1.0f,  2.0f,  2.0f,   0.0f,  0.0f,  1.0f,     0.0f,  1.0f,
-        1.0f, 1.0f,  2.0f,    0.0f,  0.0f,  1.0f,     0.0f,  0.0f,
+        1.0f,  2.0f,  2.0f,   -1.0f,  0.0f,  0.0f,     1.0f,  0.0f,
+        1.0f,  2.0f,  1.0f,   -1.0f,  0.0f,  0.0f,     1.0f,  1.0f,
+        1.0f,  1.0f,  1.0f,   -1.0f,  0.0f,  0.0f,     0.0f,  1.0f,
+        1.0f,  1.0f,  1.0f,   -1.0f,  0.0f,  0.0f,     0.0f,  1.0f,
+        1.0f,  1.0f,  2.0f,   -1.0f,  0.0f,  0.0f,     0.0f,  0.0f,
+        1.0f,  2.0f,  2.0f,   -1.0f,  0.0f,  0.0f,     1.0f,  0.0f,
 
-        1.0f,  2.0f,  2.0f,    -1.0f,  0.0f,  0.0f,    1.0f,  0.0f,
-        1.0f,  2.0f, 1.0f,    -1.0f,  0.0f,  0.0f,    1.0f,  1.0f,
-        1.0f,  1.0f, 1.0f,    -1.0f,  0.0f,  0.0f,    0.0f,  1.0f,
-        1.0f,  1.0f, 1.0f,    -1.0f,  0.0f,  0.0f,    0.0f,  1.0f,
-        1.0f,  1.0f,  2.0f,    -1.0f,  0.0f,  0.0f,    0.0f,  0.0f,
-        1.0f,  2.0f,  2.0f,    -1.0f,  0.0f,  0.0f,    1.0f,  0.0f,
+        2.0f,  2.0f,  2.0f,    1.0f,  0.0f,  0.0f,     1.0f,  0.0f,
+        2.0f,  2.0f,  1.0f,    1.0f,  0.0f,  0.0f,     1.0f,  1.0f,
+        2.0f,  1.0f,  1.0f,    1.0f,  0.0f,  0.0f,     0.0f,  1.0f,
+        2.0f,  1.0f,  1.0f,    1.0f,  0.0f,  0.0f,     0.0f,  1.0f,
+        2.0f,  1.0f,  2.0f,    1.0f,  0.0f,  0.0f,     0.0f,  0.0f,
+        2.0f,  2.0f,  2.0f,    1.0f,  0.0f,  0.0f,     1.0f,  0.0f,
 
-        2.0f,  2.0f,  2.0f,     1.0f,  0.0f,  0.0f,     1.0f,  0.0f,
-        2.0f,  2.0f, 1.0f,     1.0f,  0.0f,  0.0f,     1.0f,  1.0f,
-        2.0f, 1.0f, 1.0f,     1.0f,  0.0f,  0.0f,     0.0f,  1.0f,
-        2.0f, 1.0f, 1.0f,     1.0f,  0.0f,  0.0f,     0.0f,  1.0f,
-        2.0f, 1.0f,  2.0f,     1.0f,  0.0f,  0.0f,     0.0f,  0.0f,
-        2.0f,  2.0f,  2.0f,     1.0f,  0.0f,  0.0f,     1.0f,  0.0f,
+        1.0f,  1.0f,  1.0f,    0.0f, -1.0f,  0.0f,     0.0f,  1.0f,
+        2.0f,  1.0f,  1.0f,    0.0f, -1.0f,  0.0f,     1.0f,  1.0f,
+        2.0f,  1.0f,  2.0f,    0.0f, -1.0f,  0.0f,     1.0f,  0.0f,
+        2.0f,  1.0f,  2.0f,    0.0f, -1.0f,  0.0f,     1.0f,  0.0f,
+        1.0f,  1.0f,  2.0f,    0.0f, -1.0f,  0.0f,     0.0f,  0.0f,
+        1.0f,  1.0f,  1.0f,    0.0f, -1.0f,  0.0f,     0.0f,  1.0f,
 
-        1.0f, 1.0f, 1.0f,     0.0f, -1.0f,  0.0f,     0.0f,  1.0f,
-        2.0f, 1.0f, 1.0f,     0.0f, -1.0f,  0.0f,     1.0f,  1.0f,
-        2.0f, 1.0f,  2.0f,    0.0f, -1.0f,  0.0f,     1.0f,  0.0f,
-        2.0f, 1.0f,  2.0f,    0.0f, -1.0f,  0.0f,     1.0f,  0.0f,
-        1.0f, 1.0f,  2.0f,    0.0f, -1.0f,  0.0f,     0.0f,  0.0f,
-        1.0f, 1.0f, 1.0f,     0.0f, -1.0f,  0.0f,     0.0f,  1.0f,
-
-        1.0f,  2.0f, 1.0f,    0.0f,  1.0f,  0.0f,     0.0f,  1.0f,
-         2.0f,  2.0f, 1.0f,     0.0f,  1.0f,  0.0f,     1.0f,  1.0f,
-         2.0f,  2.0f,  2.0f,     0.0f,  1.0f,  0.0f,     1.0f,  0.0f,
-         2.0f,  2.0f,  2.0f,     0.0f,  1.0f,  0.0f,     1.0f,  0.0f,
+        1.0f,  2.0f,  1.0f,    0.0f,  1.0f,  0.0f,     0.0f,  1.0f,
+        2.0f,  2.0f,  1.0f,    0.0f,  1.0f,  0.0f,     1.0f,  1.0f,
+        2.0f,  2.0f,  2.0f,    0.0f,  1.0f,  0.0f,     1.0f,  0.0f,
+        2.0f,  2.0f,  2.0f,    0.0f,  1.0f,  0.0f,     1.0f,  0.0f,
         1.0f,  2.0f,  2.0f,    0.0f,  1.0f,  0.0f,     0.0f,  0.0f,
-        1.0f,  2.0f, 1.0f,    0.0f,  1.0f,  0.0f,     0.0f,  1.0f
+        1.0f,  2.0f,  1.0f,    0.0f,  1.0f,  0.0f,     0.0f,  1.0f
     };
 
 
@@ -332,6 +372,67 @@ int main( )
     lampLightVA.AddBuffer(lampCommonVB, lampLightlayout);
 
     glBindVertexArray(0);
+
+    //skybox setup
+    GLfloat skyboxVertices[36 * 3] = {
+        // Positions
+        -1.0f,  1.0f, -1.0f,
+        -1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,
+         1.0f,  1.0f, -1.0f,
+        -1.0f,  1.0f, -1.0f,
+
+        -1.0f, -1.0f,  1.0f,
+        -1.0f, -1.0f, -1.0f,
+        -1.0f,  1.0f, -1.0f,
+        -1.0f,  1.0f, -1.0f,
+        -1.0f,  1.0f,  1.0f,
+        -1.0f, -1.0f,  1.0f,
+
+         1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,
+
+        -1.0f, -1.0f,  1.0f,
+        -1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f, -1.0f,  1.0f,
+        -1.0f, -1.0f,  1.0f,
+
+        -1.0f,  1.0f, -1.0f,
+         1.0f,  1.0f, -1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
+        -1.0f,  1.0f,  1.0f,
+        -1.0f,  1.0f, -1.0f,
+
+        -1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f,  1.0f,
+         1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f,  1.0f,
+         1.0f, -1.0f,  1.0f
+    };
+
+    // Setup skybox VAO
+    VertexArray skyboxVA;
+    VertexBuffer skyboxVB(skyboxVertices, sizeof(skyboxVertices));
+
+    VertexBufferLayout skyboxlayout;
+    //positions
+    skyboxlayout.Push<float>(3);
+    /*
+    //texture cordinates
+    skyboxlayout.Push<float>(2);
+    */
+
+
+    skyboxVA.AddBuffer(skyboxVB, skyboxlayout);
 
 
     // Load textures
@@ -354,9 +455,16 @@ int main( )
    
 
     // Load models
+    Model nanosuitModel("res/models/nanosuit.obj");
     Model benchModel("res/models/bench.obj");
     Model cupModel("res/models/cup.obj");
+    Model lampModel("res/models/simple-lamp.obj");
 
+
+    //cout << "debug1"<<endl;
+    //int r;
+    //glGetIntegerv(GL_CURRENT_PROGRAM, &r);
+    //cout << r << " is the bound program" << endl;
 
     // Game loop
     while( !glfwWindowShouldClose( window ) )
@@ -365,139 +473,148 @@ int main( )
         GLfloat currentFrame = glfwGetTime( );
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
+
+        //GLint temp = (GLint)currentFrame % 2;
         
         // Check and call events
         glfwPollEvents( );
         DoMovement( );
         
         // Clear the colorbuffer
-        glClearColor( 0.05f, 0.05f, 0.05f, 1.0f );
+        glClearColor( 0.5f, 0.5f, 0.5f, 1.0f );
         glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
         
         
         // Create camera transformations
         glm::mat4 view = camera.GetViewMatrix();
-
-        //draw room
         glm::mat4 model(1.0f);
 
+        //draw room
         // Pass the matrices to the shader
-        lightingShader.Bind();
+        model = glm::mat4(1.0f);
+
         lightingShader.SetUniform4fv("model", model, GL_FALSE);
         lightingShader.SetUniform4fv("view", view, GL_FALSE);
         lightingShader.SetUniform4fv("projection", projection, GL_FALSE);
 
-        lightingShader.SetUniform3f("light.color", 1.0f, 1.0f, 1.0f);
-        lightingShader.SetUniform3f("light.position", lightPos);
-        lightingShader.SetUniform3f("viewPos", camera.GetPosition());
 
-        lightingShader.SetUniform3f("material.ambient", 0.2f, 0.5f, 0.3f);
-        lightingShader.SetUniform3f("material.diffuse", 0.8f, 0.5f, 0.7f);
-        lightingShader.SetUniform3f("material.specular", 0.5f, 0.5f, 0.5f);
+        lightingShader.SetUniform3f("light.color", light1.color);
+        lightingShader.SetUniform3f("light.position", light1.position);
+        lightingShader.SetUniform3f("light.diffuse", light1.diffuse);
+        lightingShader.SetUniform3f("light.ambient", light1.ambient);
+        lightingShader.SetUniform3f("light.specular", light1.specular);
+
+
+        lightingShader.SetUniform3f("viewPos", camera.GetPosition());
+       
+        lightingShader.SetUniform3f("material.ambient", 0.2f, 0.2f, 0.2f);
+        lightingShader.SetUniform3f("material.diffuse", 0.8f, 0.8f, 0.8f);
+        lightingShader.SetUniform3f("material.specular", 0.1f, 0.1f, 0.1f);
         lightingShader.SetUniform1f("material.shininess", 32.0f);
-        //lightingShader.SetUniform3f("material.color", 0.5f, 0.1f, 0.5f);
+        lightingShader.SetUniform3f("material.color", 0.0f, 1.0f, 0.0f);
         
         wallTexture.Bind(0);
-        lightingShader.SetUniform1i("u_texture" , 0);
+        lightingShader.SetUniform1i("u_texture0" , 0);
+        floorTexture.Bind(1);
+        lightingShader.SetUniform1i("u_texture1" , 1);
         lightingShader.SetUniform1i("texture_enable", 1);
 
         renderer.DrawWithoutIB(roomVA, lightingShader, 18);
 
         wallTexture.UnBind();
         glBindVertexArray(0);
-  /*
-        //draw desk
-        model = glm::mat4(1.0f);
-        
-        deskTexture.Bind(1);
-        //lightingShaderWithTexture.SetUniform1i("u_texture", glm::uvec1(1));
-
-        lightingShader.Bind();
-        lightingShader.SetUniform3f("light.color", 1.0f, 1.0f, 1.0f);
-        lightingShader.SetUniform3f("light.position", lightPos);
-        lightingShader.SetUniform3f("viewPos", camera.GetPosition());
-
-        lightingShader.SetUniform3f("material.ambient", 1.0f, 0.5f, 0.31f);
-        lightingShader.SetUniform3f("material.diffuse", 1.0f, 0.5f, 0.31f);
-        lightingShader.SetUniform3f("material.specular", 0.5f, 0.5f, 0.5f);
-        lightingShader.SetUniform1f("material.shininess", 100.0f);
-        lightingShader.SetUniform3f("material.color", 1.0f, 0.5f, 0.0f);
-
-        // Calculate the model matrix for each object and pass it to shader before drawing
-        lightingShader.SetUniform4fv("model", model, GL_FALSE);
-        lightingShader.SetUniform4fv("view", view, GL_FALSE);
-        lightingShader.SetUniform4fv("projection", projection, GL_FALSE);
-
-        renderer.Draw(deskVA, deskIB, lightingShader);
-
-        glBindVertexArray( 0 );
-        */
-
-        /*
-        //drawing the light itself (not the shell)
-        model = glm::mat4(1.0f);
-        // Use cooresponding shader when setting uniforms/drawing objects
-        lightingShader.Bind();
-
-        lightingShader.SetUniform3f("light.color", 1.0f, 1.0f, 1.0f);
-        lightingShader.SetUniform3f("light.position", lightPos);
-        lightingShader.SetUniform3f("viewPos", camera.GetPosition());
-
-        lightingShader.SetUniform3f("material.ambient", 1.0f, 0.5f, 0.31f);
-        lightingShader.SetUniform3f("material.diffuse", 1.0f, 0.5f, 0.31f);
-        lightingShader.SetUniform3f("material.specular", 0.5f, 0.5f, 0.5f);
-        lightingShader.SetUniform1f("material.shininess", 100.0f);
-        lightingShader.SetUniform3f("material.color", 0.0f, 0.5f, 0.31f);
-
-        // Pass the matrices to the shader
-        lightingShader.SetUniform4fv("view", view, GL_FALSE);
-        lightingShader.SetUniform4fv("projection", projection, GL_FALSE);
-        lightingShader.SetUniform4fv("model", model, GL_FALSE);
 
 
-        glBindVertexArray(0);
-        */
-        /*
+
         // Also draw the lamp object (The shell which will appear the color of the lamp)
         //binding the appropriate shader
-        lampShader.Bind();
+
         // Set matrices
         lampShader.SetUniform4fv("view", view, GL_FALSE);
         lampShader.SetUniform4fv("projection", projection, GL_FALSE);
 
+        lampShader.SetUniform1f("lightcolor", light1.color);
+        //GL_CHECK(lampShader.SetUniform1f("lightbrightness", 1.0f));
+
+
         model = glm::mat4(1.0f);
-        model = glm::translate(model, lightPos);
-        model = glm::scale(model, glm::vec3(0.2f)); // Make it a smaller cube
+        model = glm::translate(model, glm::vec3(0.5f, 1.71f, 2.0f));
+        model = glm::scale(model, glm::vec3(0.3f, 0.5f, 0.3f)); // Make it a smaller cube
         lampShader.SetUniform4fv("model", model, GL_FALSE);
 
         renderer.DrawWithoutIB(lampLightVA, lampShader, 36);
 
         glBindVertexArray(0);
- */
+
         //draw bench
-        lightingShader.Bind();
 
-        lightingShader.SetUniform4fv("view", view, GL_FALSE);
-        lightingShader.SetUniform4fv("projection", projection, GL_FALSE);
+        modelshader.SetUniform3f("light.color", light1.color);
+        modelshader.SetUniform3f("light.position", light1.position);
+        modelshader.SetUniform3f("light.diffuse", light1.diffuse);
+        modelshader.SetUniform3f("light.ambient", light1.ambient);
+        modelshader.SetUniform3f("light.specular", light1.specular);
 
-        // Draw the loaded models
-        //desk model
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(2.0f, 0.5f, 3.0f)); // Translate it down a bit so it's at the center of the scene
-        model = glm::scale(model, glm::vec3(2.0f, 2.0f, 2.0f));	// It's a bit too big for our scene, so scale it down
-        lightingShader.SetUniform4fv("model", model, GL_FALSE);
-        lightingShader.SetUniform1i("texture_enable", 1);
-        benchModel.Draw(lightingShader);
+
+        modelshader.SetUniform3f("viewPos", camera.GetPosition());
+
+        modelshader.SetUniform3f("material.ambient", 0.5f, 0.5f, 0.5f);
+        modelshader.SetUniform3f("material.diffuse", 3.0f, 3.0f, 3.0f);
+        modelshader.SetUniform3f("material.specular", 0.1f, 0.1f, 0.1f);
+        modelshader.SetUniform1f("material.shininess", 32.0f);
+        //modelshader.SetUniform3f("material.color", 0.0f, 1.0f, 0.0f);
+
+
         
 
-        lightingShader.Bind();
+        // Draw the loaded models
+        modelshader.SetUniform1i("isModel", 1);
+        modelshader.SetUniform4fv("view", view, GL_FALSE);
+        modelshader.SetUniform4fv("projection", projection, GL_FALSE);
+
+
+        //nanosuit model
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(3.0f, 0.0f, 2.0f)); // Translate it down a bit so it's at the center of the scene
+        model = glm::scale(model, glm::vec3(0.2f, 0.2f, 0.2f));	// It's a bit too big for our scene, so scale it down
+        modelshader.SetUniform4fv("model", model, GL_FALSE);
+
+        nanosuitModel.Draw(modelshader);
+
+        //bench model
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(2.0f, 0.0f, 3.0f)); // Translate it down a bit so it's at the center of the scene
+        model = glm::scale(model, glm::vec3(2.0f, 2.0f, 2.0f));	// It's a bit too big for our scene, so scale it down
+        modelshader.SetUniform4fv("model", model, GL_FALSE);
+
+        benchModel.Draw(modelshader);
+
+
+
+
         //cup model
         model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(2.0f, 3.0f, 3.0f)); // Translate it down a bit so it's at the center of the scene
-        model = glm::scale(model, glm::vec3(0.2f, 0.2f, 0.2f));	// It's a bit too big for our scene, so scale it down
-        lightingShader.SetUniform4fv("model", model, GL_FALSE);
-        lightingShader.SetUniform1i("texture_enable", 0);
-        cupModel.Draw(lightingShader);
+        model = glm::translate(model, glm::vec3(2.0f, 1.71f, 3.0f)); // Translate it down a bit so it's at the center of the scene
+        model = glm::scale(model, glm::vec3(0.1f, 0.1f, 0.1f));	
+        model = glm::rotate(model, 90.0f, glm::vec3(0.0f, -1.0f, 0.0f));	
+        modelshader.SetUniform4fv("model", model, GL_FALSE);
+
+        modelshader.SetUniform1f("material.shininess", 1.0f);
+
+        cupModel.Draw(modelshader);
+
+        //draw lamp
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(1.0f, 1.71f, 2.5f)); // Translate it down a bit so it's at the center of the scene
+        model = glm::scale(model, glm::vec3(0.3f, 0.3f, 0.3f));	// It's a bit too big for our scene, so scale it down
+        modelshader.SetUniform4fv("model", model, GL_FALSE);
+
+        lampModel.Draw(modelshader);
+
+
+        //uncomment to enable skybox
+        //drawSkybox(view, projection, skyboxShader, skyboxVA, skyboxTexture);
+
+        glBindVertexArray(0);
 
         // Swap the buffers
         glfwSwapBuffers( window );
@@ -586,7 +703,7 @@ void MousePosCallback( GLFWwindow *window, double xPos, double yPos )
     }
 }
 
-inline void drawSkybox(glm::mat4 view, glm::mat4 projection, Shader skyboxShader, VertexArray skyboxVA, GLuint skyboxTexture) {
+void drawSkybox(glm::mat4& view, glm::mat4& projection, Shader& skyboxShader, VertexArray& skyboxVA, GLuint& skyboxTexture) {
         //draw skybox
         // Draw skybox as last
         glDepthFunc(GL_LEQUAL);  // Change depth function so depth test passes when values are equal to depth buffer's content
@@ -621,3 +738,10 @@ void GLAPIENTRY ErrorMessageCallback(GLenum source,
         " type = " << type << " severity = " << severity << " message = " << message << std::endl;
 }
 
+void SetLightProperties(Shader shader, light l) {
+    shader.SetUniform3f("light.color", l.color);
+    shader.SetUniform3f("light.position", l.position);
+    shader.SetUniform3f("light.ambient", l.ambient);
+    shader.SetUniform3f("light.diffuse", l.diffuse);
+    shader.SetUniform3f("light.specular", l.specular);
+}

@@ -16,8 +16,7 @@
 #include <assimp/postprocess.h>
 
 #include "Mesh.h"
-#include "Shader.h"
-#include "common.h"
+#include "newShader.h"
 
 using namespace std;
 
@@ -34,16 +33,12 @@ public:
     }
     
     // Draws the model, and thus all its meshes
-    void Draw( Shader& shader )
+    void Draw( Shader shader )
     {
-
-        GL_CHECK(shader.Bind());
-        //cout << "meshes size " << this->meshes.size() << endl;
-        for ( int i = 0; i < this->meshes.size( ); i++ )
+        //shader.Bind();
+        for ( GLuint i = 0; i < this->meshes.size( ); i++ )
         {
-            //cout <<endl<< " Iteration "<<i<< endl;
             this->meshes[i].Draw( shader );
-            //shader.UnBind();//not usefull
         }
         //shader.UnBind();
     }
@@ -223,9 +218,9 @@ GLint TextureFromFile( const char *path, string directory )
     glGenTextures( 1, &textureID );
     
     int width, height;
-    
-    unsigned char *image = SOIL_load_image( filename.c_str( ), &width, &height, 0, SOIL_LOAD_RGB );
-    
+
+    unsigned char *image = SOIL_load_image( filename.c_str(), &width, &height, 0, SOIL_LOAD_RGB );
+
     // Assign texture to ID
     glBindTexture( GL_TEXTURE_2D, textureID );
     glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, image );

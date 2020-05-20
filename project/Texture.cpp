@@ -1,18 +1,20 @@
 
 #include "Texture.h"
+#include "common.h"
 
 TextureClass::TextureClass(GLchar* path)
 {
     //use ID and load texture data
-    glGenTextures(1, &m_RendererID);
+    GL_CHECK(glGenTextures(1, &m_RendererID));
 
     int imageWidth, imageHeight;
 
-    unsigned char* image = SOIL_load_image(path, &imageWidth, &imageHeight, 0, SOIL_LOAD_RGB);
+    unsigned char* image;
+    GL_CHECK(image = SOIL_load_image(path, &imageWidth, &imageHeight, 0, SOIL_LOAD_RGB));
 
     // Assign texture to ID
     glBindTexture(GL_TEXTURE_2D, m_RendererID);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, imageWidth, imageHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
+    GL_CHECK(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, imageWidth, imageHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, image));
     glGenerateMipmap(GL_TEXTURE_2D);
 
     // Parameters

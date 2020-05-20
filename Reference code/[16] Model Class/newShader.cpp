@@ -1,16 +1,13 @@
-#include "Shader.h"
-#include "common.h"
+#include "newShader.h"
 
 Shader::~Shader()
 {
-    std::cout << "Deleting shader with id:" << this->m_RendererID << std::endl;
     glDeleteProgram(this->m_RendererID);
 }
 
 void Shader::Bind() const
 {
-    //std::cout<<"Rendered id to bind:"<<this->m_RendererID<<std::endl;
-	GL_CHECK(glUseProgram( this->m_RendererID ));
+	glUseProgram( this->m_RendererID );
 }
 
 void Shader::UnBind() const
@@ -20,14 +17,11 @@ void Shader::UnBind() const
 
 GLuint Shader::compileShader(const GLchar*  shaderCode, unsigned int type  ) const
 {
-   GLuint compiledShader;
+    GLuint compiledShader;
     GLint success;
     GLchar infoLog[512];
-
-    GL_CHECK(compiledShader = 1);
     // Vertex Shader
-    GL_CHECK(compiledShader = glCreateShader(type));
-
+    compiledShader = glCreateShader(type);
     glShaderSource(compiledShader, 1, &shaderCode, NULL);
     glCompileShader(compiledShader);
 
@@ -36,8 +30,7 @@ GLuint Shader::compileShader(const GLchar*  shaderCode, unsigned int type  ) con
     if (!success)
     {
         glGetShaderInfoLog(compiledShader, 512, NULL, infoLog);
-        if (type == GL_VERTEX_SHADER) std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
-        if (type == GL_FRAGMENT_SHADER) std::cout << "ERROR::SHADER::FAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
+        std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
         exit(EXIT_FAILURE);
     }
 
@@ -84,11 +77,15 @@ Shader::Shader(const GLchar* vertexPath, const GLchar* fragmentPath):m_RendererI
 
     // 2. Compile shaders
     GLuint vertex, fragment;
-    GL_CHECK(vertex = compileShader(vShaderCode, GL_VERTEX_SHADER));
-    GL_CHECK(fragment = compileShader(fShaderCode, GL_FRAGMENT_SHADER));
+    vertex = compileShader(vShaderCode, GL_VERTEX_SHADER);
+    fragment = compileShader(fShaderCode, GL_FRAGMENT_SHADER);
     
     // Shader Program
-    GL_CHECK(this->m_RendererID = glCreateProgram());
+    this->m_RendererID = glCreateProgram();
+    if (this->m_RendererID == 0) {
+        std::cout << "glcreateprogram returned 0 in shader";
+        exit(EXIT_FAILURE);
+    }
 
     std::cout << "created a progrma with id " << this->m_RendererID << std::endl;
     glAttachShader(this->m_RendererID, vertex);
@@ -196,7 +193,7 @@ int Shader::GetUniformLocation(const std::string& name) {
 
     int location = glGetUniformLocation(m_RendererID, name.c_str());
     if (location == -1) {
-        std::cerr << "Warning: Uniform " << name << " doesn't exist"<<" for "<<m_RendererID<<std::endl;
+        //std::cerr << "Warning: Uniform " << name << " doesn't exist"<<std::endl;
     }
 
     m_UniformLocationCache[name] = location;
